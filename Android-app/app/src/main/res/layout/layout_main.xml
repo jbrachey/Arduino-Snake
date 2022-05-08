@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical" >
+    <TextView android:id="@+id/text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Hello, I am a TextView" />
+
+    <com.example.snake.DrawView
+        android:id="@+id/DrawView"
+        android:layout_width="1024px"
+        android:layout_height="1024px"
+        android:layout_marginHorizontal="5pt"
+        android:layout_marginTop="50pt"
+        android:background="@drawable/back" />
+</LinearLayout>
