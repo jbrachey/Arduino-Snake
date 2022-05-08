@@ -24,6 +24,7 @@ int startY = 64;
 int lastDirection = 2;
 
 int applesEaten = 0;
+bool gameStart = true;
 
 int data;
 SoftwareSerial BT(9, 10);
@@ -101,9 +102,12 @@ void loop() {
   if (lIn == 0) {
     left = true;
   }
-  if (data > 0 || uIn == 0 || rIn == 0 || dIn == 0 || lIn == 0) {
+  /*if (data > 0 || uIn == 0 || rIn == 0 || dIn == 0 || lIn == 0) {
     handleInputs(data, up, right, down, left);
-  }
+  }*/
+  handleInputs(data, up, right, down, left);
+  BT.listen();
+  delay(25);
   data = 0;
 }
 
@@ -118,9 +122,22 @@ void handleInputs(int data, bool up, bool right, bool down, bool left) {
   //bool isBTMoving = data > 0 && data < 5;
   bool isBTInput = false;
   //bool isBTColorChanging = data >= 5;
-  bool isSnakeMoving = up || right || down || left;
+  bool isSnakeMoving = valid_input(up, right, down, left);
   if (isSnakeMoving) {
+    if (gameStart) {
+      gameStart = false;
+    }
     moveSnake(up, right, down, left);
+  } else if (!gameStart) {
+    if (lastDirection == 1) {
+      moveSnake(true, false, false, false);
+    } else if (lastDirection == 2) {
+      moveSnake(false, true, false, false);
+    } else if (lastDirection == 3) {
+      moveSnake(false, false, true, false);
+    } else if (lastDirection == 4) {
+      moveSnake(false, false, false, true);
+    }
   }
   /*if (isBTInput && isSnakeMoving) {
     // Two squares moving at same time
@@ -140,9 +157,6 @@ void handleInputs(int data, bool up, bool right, bool down, bool left) {
 }
 
 void moveSnake(bool up, bool right, bool down, bool left) {
-  if (!valid_input(up, right, down, left)) {
-    return;
-  }
   bool moved = false;
   if (up && lastDirection != 3) {
     if (!is_valid(0)) {
@@ -194,15 +208,27 @@ void moveSnake(bool up, bool right, bool down, bool left) {
 bool valid_input(bool up, bool right, bool down, bool left) {
   int numInputs = 0;
   if (up) {
+    if (lastDirection == 3) {
+      return false;
+    }
     numInputs++;
   }
   if (right) {
+    if (lastDirection == 4) {
+      return false;
+    }
     numInputs++;
   }
   if (down) {
+    if (lastDirection == 1) {
+      return false;
+    }
     numInputs++;
   }
   if (left) {
+    if (lastDirection == 2) {
+      return false;
+    }
     numInputs++;
   }
   return numInputs == 1;
