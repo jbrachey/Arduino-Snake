@@ -15,6 +15,10 @@ int i = 0;
 LinkedList<int> snakeX = LinkedList<int>();
 LinkedList<int> snakeY = LinkedList<int>();
 int snakeLength = 2;
+
+LinkedList<int> obstaclesX = LinkedList<int>();
+LinkedList<int> obstaclesY = LinkedList<int>();
+int numObstacles = 0;
 int randX = 0;
 int randY = 0;
 int apple[2] = {0, 0};
@@ -26,7 +30,8 @@ int lastDirection = 2;
 int applesEaten = 0;
 bool gameStart = true;
 
-int data;
+int dataX;
+int dataY;
 SoftwareSerial BT(9, 10);
 SoftwareSerial DisplaySerial(11, 12);
 Goldelox_Serial_4DLib Display(&DisplaySerial);
@@ -76,11 +81,22 @@ void loop() {
   BT.listen();
   //data = BT.read();
   while (BT.available() > 0) {
-    data = BT.read();
-    /*if (BT.available() > 0) {
-      handleInputs(data, 1, 1, 1, 1);
-    }*/
+    dataX = BT.read() * 4;
+    dataY = BT.read() * 4;
+    if (isValidObstacle(dataX, dataY)) {
+      placeObstacle(dataX, dataY);
+      obstaclesX.add(0, dataX);
+      obstaclesY.add(0, dataY);
+      numObstacles++;
+      if (numObstacles > 8) {
+        int obX = obstaclesX.pop();
+        int obY = obstaclesY.pop();
+        numObstacles--;
+        clearObstacle(obX, obY);
+      }
+    }
   }
+  
   int lIn = digitalRead(leftPin);
   int rIn = digitalRead(rightPin);
   int dIn = digitalRead(downPin);
@@ -102,26 +118,22 @@ void loop() {
   if (lIn == 0) {
     left = true;
   }
-  /*if (data > 0 || uIn == 0 || rIn == 0 || dIn == 0 || lIn == 0) {
-    handleInputs(data, up, right, down, left);
-  }*/
-  handleInputs(data, up, right, down, left);
+  handleInputs(up, right, down, left);
   BT.listen();
-  delay(25);
-  data = 0;
+  delay(100);
+  dataX = 0;
+  dataY = 0;
 }
 
 void draw_game() {
-  Display.gfx_RectangleFilled(snakeX.get(0), snakeY.get(0), snakeX.get(0) + 3, snakeY.get(0) + 3, GREEN);
-  Display.gfx_RectangleFilled(snakeX.get(1), snakeY.get(1), snakeX.get(1) + 3, snakeY.get(1) + 3, GREEN);
-  drawNewApple();
+  Display.gfx_RectangleFilled(snakeX.get(0), snakeY.get(0), snakeX.get(0) + 3, snakeY.get(0) + 3, LIGHTGREEN);
+  Display.gfx_RectangleFilled(snakeX.get(1), snakeY.get(1), snakeX.get(1) + 3, snakeY.get(1) + 3, LIGHTGREEN);
   BT.listen();
+  drawNewApple();
 }
 
-void handleInputs(int data, bool up, bool right, bool down, bool left) {
-  //bool isBTMoving = data > 0 && data < 5;
+void handleInputs(bool up, bool right, bool down, bool left) {
   bool isBTInput = false;
-  //bool isBTColorChanging = data >= 5;
   bool isSnakeMoving = valid_input(up, right, down, left);
   if (isSnakeMoving) {
     if (gameStart) {
@@ -139,20 +151,6 @@ void handleInputs(int data, bool up, bool right, bool down, bool left) {
       moveSnake(false, false, false, true);
     }
   }
-  /*if (isBTInput && isSnakeMoving) {
-    // Two squares moving at same time
-    moveSquare(colorSelected, data - 1);
-    handleJS(up, right, down, left);
-  } else if (isBTInput && isJSMoving) {
-    colorSelected = data - 5;
-    //handleJS(up, right, down, left);
-  } else if (isBTMoving && !isJSMoving) {
-    moveSquare(colorSelected, data - 1);
-  } else if (isBTColorChanging && !isJSMoving){
-    colorSelected = data - 5;
-  } else if (isJSMoving){
-    handleJS(up, right, down, left);
-  }*/
   BT.listen();
 }
 
@@ -192,9 +190,13 @@ void moveSnake(bool up, bool right, bool down, bool left) {
     lastDirection = 4;
   }
   if (moved) {
-    if (apple_collision(snakeX.get(0), snakeY.get(0), apple[0], apple[1])) {
+    if (hasCollision(snakeX.get(0), snakeY.get(0), apple[0], apple[1])) {
       snakeLength++;
       applesEaten++;
+      int sendX = apple[0] / 4;
+      int sendY = apple[1] / 4;
+      BT.write(sendX);
+      BT.write(sendY);
       drawNewApple();
       updateSnake(true);
     } else {
@@ -236,38 +238,37 @@ bool valid_input(bool up, bool right, bool down, bool left) {
 
 void updateSnake(bool ateApple) {
   DisplaySerial.listen();
-  Display.gfx_RectangleFilled(snakeX.get(0), snakeY.get(0), snakeX.get(0) + 3, snakeY.get(0) + 3, GREEN);
+  Display.gfx_RectangleFilled(snakeX.get(0), snakeY.get(0), snakeX.get(0) + 3, snakeY.get(0) + 3, LIGHTGREEN);
   if (!ateApple) {
     Display.gfx_RectangleFilled(snakeX.get(snakeLength), snakeY.get(snakeLength), snakeX.get(snakeLength) + 3, snakeY.get(snakeLength) + 3, BLACK);
   }
   BT.listen();
 }
-/*
-void drawSnakeUp() {
+
+bool isValidObstacle(int x, int y) {
+  if (hasCollision(x, y, apple[0], apple[1])) {
+    return false;
+  }
+  for (int i = 0; i < snakeLength; i++) {
+    if (hasCollision(x, y, snakeX.get(i), snakeY.get(i))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void placeObstacle(int x, int y) {
   DisplaySerial.listen();
-  Display.gfx_RectangleFilled(snakeX.get(0), snakeY.get(0) - 4, snakeX.get(0) + 3, snakeY.get(0) - 1, GREEN);
-  Display.gfx_RectangleFilled(snakeX.get(snakeLength - 1), snakeY.get(snakeLength - 1), snakeX.get(snakeLength - 1) + 3, snakeY.get(snakeLength - 1) + 3, BLACK);
+  Display.gfx_RectangleFilled(x, y, x + 3, y + 3, WHITE);
   BT.listen();
 }
-void drawSnakeRight() {
+
+void clearObstacle(int x, int y) {
   DisplaySerial.listen();
-  Display.gfx_RectangleFilled(snakeX.get(0) + 4, snakeY.get(0), snakeX.get(0) + 7, snakeY.get(0) + 3, GREEN);
-  Display.gfx_RectangleFilled(snakeX.get(snakeLength - 1), snakeY.get(snakeLength - 1), snakeX.get(snakeLength - 1) + 3, snakeY.get(snakeLength - 1) + 3, BLACK);
+  Display.gfx_RectangleFilled(x, y, x + 3, y + 3, BLACK);
   BT.listen();
 }
-void drawSnakeDown() {
-  DisplaySerial.listen();
-  Display.gfx_RectangleFilled(snakeX.get(0), snakeY.get(0) + 4, snakeX.get(0) + 3, snakeY.get(0) + 7, GREEN);
-  Display.gfx_RectangleFilled(snakeX.get(snakeLength - 1), snakeY.get(snakeLength - 1), snakeX.get(snakeLength - 1) + 3, snakeY.get(snakeLength - 1) + 3, BLACK);
-  BT.listen();
-}
-void drawSnakeLeft() {
-  DisplaySerial.listen();
-  Display.gfx_RectangleFilled(snakeX.get(0) - 4, snakeY.get(0), snakeX.get(0) - 1, snakeY.get(0) + 3, GREEN);
-  Display.gfx_RectangleFilled(snakeX.get(snakeLength - 1), snakeY.get(snakeLength - 1), snakeX.get(snakeLength - 1) + 3, snakeY.get(snakeLength - 1) + 3, BLACK);
-  BT.listen();
-}
-*/
+
 bool is_valid(int dir) {
   int newX = 0;
   int newY = 0;
@@ -284,13 +285,13 @@ bool is_valid(int dir) {
     newX = snakeX.get(0) - 4;
     newY = snakeY.get(0);
   }
-  if (has_collision(newX, newY)) {
+  if (isSnakeCollision(newX, newY)) {
       return false;
   }
   return true;
 }
 
-bool has_collision(int x, int y) {
+bool isSnakeCollision(int x, int y) {
   if (x < 0 || x > 124 || y < 0 || y > 124) {
     return true;
   }
@@ -299,27 +300,15 @@ bool has_collision(int x, int y) {
       return true;
     }
   }
+  for (int i = 0; i < numObstacles; i++) {
+    if (obstaclesX.get(i) == x && obstaclesY.get(i) == y) {
+      return true;
+    }
+  }
   return false;
 }
 
-bool apple_collision(int x1, int y1, int x2, int y2) {
-  /*if ((y1 < (y2 + 4 - 1) && (y1 + 4 - 1) > y2) && (x1 < (x2 + 4 - 1) && (x1 + 4 - 1) > x2)) {
-    if (dir == 1) {
-      snakeX.add(0, snakeX.get(0));
-      snakeY.add(0, snakeY.get(0) - 1);
-    } else if (dir == 2) {
-      snakeX.add(0, snakeX.get(0) + 1);
-      snakeY.add(0, snakeY.get(0));
-    } else if (dir == 3) {
-      snakeX.add(0, snakeX.get(0));
-      snakeY.add(0, snakeY.get(0) + 1);
-    } else if (dir == 4) {
-      snakeX.add(0, snakeX.get(0) - 1);
-      snakeY.add(0, snakeY.get(0));
-    }
-    snakeLength++;
-    return true;
-  }*/
+bool hasCollision(int x1, int y1, int x2, int y2) {
   if (x1 == x2 && y1 == y2) {
     return true;
   }
@@ -350,35 +339,6 @@ void drawApple(int appleX, int appleY) {
   BT.listen();
 }
 
-/*void refillApple() {
-  // code does not display the new red apple when the line below is included, but does when it is commented out
-  // player cannot move once collision occurs
-  
-  
-  //Display.gfx_RectangleFilled(apple[0], apple[1], apple[0] + 3, apple[1] + 3, BLACK);
-  appleEaten = false;
-  int randX = random(128);
-  int randY = random(128); 
-
-  for (int i = 0; i < snakeLength; i++) {
-    while ((randY < (snakeY.get(i) + 4 - 1) && (randY + 4 - 1) > snakeY.get(i)) && (randX < (snakeX.get(i) + 4 - 1) && (randX + 4 - 1) > snakeX.get(i))) {
-      randX = random(128);
-      randY = random(128);
-      i = 0;
-    }
-  }
-  apple[0] = randX;
-  apple[1] = randY;
-  Display.gfx_RectangleFilled(apple[0], apple[1], apple[0] + 3, apple[1] + 3, RED);
-}*/
-
-bool pixelCollision(int x1, int y1, int x2, int y2) {
-  if ((y1 < (y2) && (y1) > y2) && (x1 < (x2) && (x1) > x2)) {
-    return true;
-  }
-  return false;
-}
-
 void end_game() {
   DisplaySerial.listen();
   Display.gfx_Cls();
@@ -389,131 +349,6 @@ void end_game() {
     delay(1000);
   }
 }
-/*void handleInputs(int data, bool up, bool right, bool down, bool left) {
-  bool isBTMoving = data > 0 && data < 5;
-  bool isBTColorChanging = data >= 5;
-  bool isJSMoving = up || right || down || left;
-  Serial.print("isBTMoving, isBTColorChanging, isJSMoving: ");
-  Serial.print(isBTMoving);
-  Serial.print(", ");
-  Serial.print(isBTColorChanging);
-  Serial.print(", ");
-  Serial.println(isJSMoving);
-  if (isBTMoving) {
-    moveSquare(colorSelected, data - 1);
-  } else if (isBTColorChanging) {
-    colorSelected = data - 5;
-  }
-  if (isJSMoving) {
-    handleJS(up, right, down, left);
-  }
-}
-
-void handleJS(bool up, bool right, bool down, bool left) {
-  if (up) {
-      moveSquare(3, 0);
-    }
-    if (right) {
-      moveSquare(3, 1);
-    }
-    if (down) {
-      moveSquare(3, 2);
-    }
-    if (left) {
-      moveSquare(3, 3);
-    }
-    // This delay slows down the frame rate and gives the BT a larger chance of being heard.
-    delay(100);
-}
-
-void moveSquare(int color, int dir) {
-  if (!is_valid(color, dir)) {
-    return;
-  }
-  clear_square(color);
-  if (dir == 0) { // up
-    coords[color][1]-=2;
-  } else if (dir == 1) { // right
-    coords[color][0]+=2;
-  } else if (dir == 2) { // down
-    coords[color][1]+=2;
-  } else if (dir == 3) { // left
-    coords[color][0]-=2;
-  }
-  draw_square(color);
-}
-
-void draw_squares() {
-  draw_square(2);
-}
-
-void draw_square(int color) {
-  DisplaySerial.listen();
-  if (color == 0) { // red
-    Display.gfx_RectangleFilled(coords[0][0], coords[0][1], coords[0][0] + 5, coords[0][1] + 5, RED);
-  } else if (color == 1) { // blue
-    Display.gfx_RectangleFilled(coords[1][0], coords[1][1], coords[1][0] + 5, coords[1][1] + 5, BLUE);
-  } else if (color == 3) { // orange
-    Display.gfx_RectangleFilled(coords[2][0], coords[2][1], coords[2][0] + 5, coords[2][1] + 5, GREEN);
-  } else if (color == 2) { // green
-    Display.gfx_RectangleFilled(coords[3][0], coords[3][1], coords[3][0] + 5, coords[3][1] + 5, ORANGE);
-  }
-  BT.listen();
-  // This delay gives the BT a bit more time to get inputs read.
-  //delay(100);
-}
-
-void clear_square(int color) {
-  DisplaySerial.listen();
-  Display.gfx_RectangleFilled(coords[color][0], coords[color][1], coords[color][0] + 5, coords[color][1] + 5, BLACK);
-  BT.listen();
-}
-
-bool is_valid(int color, int dir) {
-  int newX = 0;
-  int newY = 0; 
-  if (dir == 0) { // up
-    if (coords[color][1] == 0) {
-      return false;
-    }
-    newX = coords[color][0];
-    newY = coords[color][1] - 1;
-  } else if (dir == 1) { // right
-    if (coords[color][0] == 122) {
-      return false;
-    }
-    newX = coords[color][0] + 1;
-    newY = coords[color][1];
-  } else if (dir == 2) { // down
-    if (coords[color][1] == 122) {
-      return false;
-    }
-    newX = coords[color][0];
-    newY = coords[color][1] + 1;
-  } else if (dir == 3) { // left
-    if (coords[color][0] == 0) {
-      return false;
-    }
-    newX = coords[color][0] - 1;
-    newY = coords[color][1];
-  }
-  if (has_collision(color, newX, newY)) {
-      return false;
-  }
-  return true;
-}
-
-bool has_collision(int color, int x, int y) {
-  for (int i = 0; i < 4; i++) {
-    if (i == color) {
-      continue;
-    }
-    if (abs(coords[i][0] - x) < 6 && abs(coords[i][1] - y) < 6) {
-      return true;
-    }
-  }
-  return false;
-}*/
 
 void mycallback(int ErrCode, unsigned char Errorbyte)
 {
